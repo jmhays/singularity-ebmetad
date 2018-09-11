@@ -1,0 +1,30 @@
+*** repl_ex.c	2011-12-22 14:28:43.000000000 +0100
+--- /Users/carlo/Downloads/gromacs-4.5.5/src/kernel/repl_ex.c	2011-09-21 14:34:32.000000000 +0200
+***************
+*** 38,44 ****
+  #endif
+  
+  #include <math.h>
+- #include "solute.h"
+  #include "repl_ex.h"
+  #include "network.h"
+  #include "random.h"
+--- 38,43 ----
+***************
+*** 622,629 ****
+                  ediff = Epot[b] - Epot[a];
+                  betaA = 1.0/(re->q[a]*BOLTZ);
+                  betaB = 1.0/(re->q[b]*BOLTZ);
+!                 if(rex.rest) delta = delta_res(betaA, betaB, a, b);
+!                 
+                  break;
+              case ereLAMBDA:
+                  /* Here we exchange based on a linear extrapolation of dV/dlambda.
+--- 621,627 ----
+                  ediff = Epot[b] - Epot[a];
+                  betaA = 1.0/(re->q[a]*BOLTZ);
+                  betaB = 1.0/(re->q[b]*BOLTZ);
+!                 delta = (betaA - betaB)*ediff;
+                  break;
+              case ereLAMBDA:
+                  /* Here we exchange based on a linear extrapolation of dV/dlambda.

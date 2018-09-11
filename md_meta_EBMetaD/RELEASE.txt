@@ -1,0 +1,21 @@
+Notes for releasing plumed
+
+* in patches/patch_tool.sh: change the variable "PLUMED_VERSION" from "cvs" to the actual version number (e.g. "1.3")
+* in common_files/*.{c,h}: change the VERSION to the actual version number (e.g. "1.3")
+* in manual/: compile the pdf version of the manual
+* remove header.c and cvs2cl.pl
+* in all the patches/plumedpatch_*, set
+RECON_LIBS=
+  to deactivate compilation of recon stuff
+* remove non-releasable feature. For 1.3
+  -camshift_src/
+  -recon_src/recon_bespoke.h
+  -recon_src/recon_bespoke.cpp
+  -common_files/restraint_bespoke.c
+  -plumedpatch_opep.sh
+  -diff/OPEP
+  -utilities/path_tools
+  -utilities/hrex
+  -utilities/recon_tools
+  -utilities/catdcd_plumed
+  -utilities/gui

@@ -1,0 +1,427 @@
+patch -c -l -b -F 3 --suffix=.preplumed "./makefiles/Makefile" << \EOF_EOF
+*** ./makefiles/Makefile.preplumed	Wed Mar 21 16:05:37 2012
+--- ./makefiles/Makefile	Wed Mar 21 16:11:23 2012
+***************
+*** 1,3 ****
+--- 1,4 ----
++ VERBOSE=yes
+  #
+  # make -j 16 sopt popt ssmp psmp
+  #
+***************
+*** 43,48 ****
+--- 44,51 ----
+  LIBDIR               = $(MAINLIBDIR)/$(ARCH)
+  OBJDIR               = $(MAINOBJDIR)/$(ARCH)
+  OBJECTDEFS           = $(SRCDIR)/OBJECTDEFS
++ PLUMED_FDEFS           = $(SRCDIR)/PLUMEDDEFS
++ PLUMED_CDEFS         = $(SRCDIR)/plumed/plumed.inc
+  LIB1_OBJECTDEFS      = $(SRCDIR)/lib/OBJECTDEFS
+  LIB2_OBJECTDEFS      = $(SRCDIR)/dbcsr_lib/OBJECTDEFS
+  LIB3_OBJECTDEFS      = $(SRCDIR)/fft_lib/OBJECTDEFS
+***************
+*** 102,107 ****
+--- 105,111 ----
+  	+$(MAKE) -C $(SRCDIR)/arch_lib -f $(MAKEFILE) ma.dep
+  	+cp $(LIBCUDA_DEPENDENCIES) $(OBJDIR)/$(VERSION)/libc_cuda.dep
+  	+cp $(LIBMA_DEPENDENCIES) $(OBJDIR)/$(VERSION)/libc_ma.dep
++ 	+$(MAKE) -C $(OBJDIR)/$(VERSION) -f $(MAKEFILE) plumed 
+  	+$(MAKE) -C $(OBJDIR)/$(VERSION) -f $(MAKEFILE) $(WHAT)
+  
+  fes: dirs deptool
+***************
+*** 113,118 ****
+--- 117,123 ----
+  	@mkdir -p $(LIBDIR)/$(VERSION)
+  	@mkdir -p $(TOOLDIR)
+  	@mkdir -p $(OBJDIR)/$(VERSION)
++ 	@mkdir -p $(OBJDIR)/$(VERSION)/plumed
+  	@mkdir -p $(PRETTYOBJDIR)
+  
+  realpretty: prettyclean pretty
+***************
+*** 158,163 ****
+--- 163,171 ----
+  # here we try to include all the objects that might need considering
+  #
+  include $(OBJECTDEFS)
++ include $(PLUMED_FDEFS)
++ include $(PLUMED_CDEFS)
++ PLUMED_OBJECTS2 = $(addprefix plumed/, $(PLUMED_OBJECTS))
+  include $(LIB1_OBJECTDEFS)
+  include $(LIB2_OBJECTDEFS)
+  include $(LIB3_OBJECTDEFS)
+***************
+*** 167,173 ****
+  include $(LIBNVOBJECTDEFS)
+  include $(LIBMA_OBJECTDEFS)
+  
+! OBJECTS = $(OBJECTS_GENERIC) $(OBJECTS_ARCHITECTURE)
+  FESOBJS = $(FESOBJ) $(OBJECTS_ARCHITECTURE)
+  
+  # Cuda specific instructions
+--- 175,181 ----
+  include $(LIBNVOBJECTDEFS)
+  include $(LIBMA_OBJECTDEFS)
+  
+! OBJECTS = $(OBJECTS_GENERIC) $(OBJECTS_ARCHITECTURE) $(OBJECTS_PLUMED) 
+  FESOBJS = $(FESOBJ) $(OBJECTS_ARCHITECTURE)
+  
+  # Cuda specific instructions
+***************
+*** 187,193 ****
+  
+  
+  # Define the whole bunch of libraries needed
+! ALL_LIB =  $(LIB_CP2K_ARCHIVE) $(LIB3_ARCHIVE) $(LIB2_ARCHIVE) $(LIB1_ARCHIVE) $(LIB4_ARCHIVE) $(LIBMA_ARCHIVE) $(LIBNV_ARCHIVE) 
+  
+  #
+  # some practical variables for the build
+--- 195,201 ----
+  
+  
+  # Define the whole bunch of libraries needed
+! ALL_LIB =  $(LIB_CP2K_ARCHIVE) $(LIB3_ARCHIVE) $(LIB2_ARCHIVE) $(LIB1_ARCHIVE) $(LIB4_ARCHIVE) $(LIBMA_ARCHIVE) $(LIBNV_ARCHIVE) $(PLUMED_OBJECTS2) 
+  
+  #
+  # some practical variables for the build
+***************
+*** 264,273 ****
+  fes.dep: $(FESOBJS:.o=.F) 
+  	$(TOOLDIR)/makedepf90 -I$(SRCDIR) -b. $(MODSTRING)  -free $^ > $(OBJDIR)/$(VERSION)/fes.dep || ( rm -f $(OBJDIR)/$(VERSION)/fes.dep  ; exit 1 )
+  
+  #
+  # and the rules doing the actual work
+  #
+! _all: $(ALL_LIB) $(PROG) fes $(CP2KSHELL)
+  _progr: $(PROG)
+  _lib: $(ALL_LIB)
+  _cpshell: $(CP2KSHELL)
+--- 272,284 ----
+  fes.dep: $(FESOBJS:.o=.F) 
+  	$(TOOLDIR)/makedepf90 -I$(SRCDIR) -b. $(MODSTRING)  -free $^ > $(OBJDIR)/$(VERSION)/fes.dep || ( rm -f $(OBJDIR)/$(VERSION)/fes.dep  ; exit 1 )
+  
++ $(PLUMED_OBJECTS2): %.o: $(SRCDIR)/%.c
++ 	$(CC) $(CFLAGS) -DAMBER -c $< -o $@
++ 
+  #
+  # and the rules doing the actual work
+  #
+! _all:  $(ALL_LIB) $(PROG) fes $(CP2KSHELL)
+  _progr: $(PROG)
+  _lib: $(ALL_LIB)
+  _cpshell: $(CP2KSHELL)
+***************
+*** 437,442 ****
+--- 448,454 ----
+  	-test ! -d $(OBJDIR)/$(VERSION) || { cd $(OBJDIR)/$(VERSION) ; rm -f *.o ; } 
+  	-test ! -d $(OBJDIR)/$(VERSION) || { cd $(OBJDIR)/$(VERSION) ; rm -f *.f90 ; }
+  	-test ! -d $(OBJDIR)/$(VERSION) || { cd $(OBJDIR)/$(VERSION) ; rm -f *.dep ; }
++ 	-test ! -d $(OBJDIR)/$(VERSION)/plumed || { cd $(OBJDIR)/$(VERSION)/plumed ; rm -f *.o ; }
+  
+  #
+  # delete the intermediate files, the programs and libraries and anything that might be in the objdir directory
+EOF_EOF
+patch -c -l -b -F 3 --suffix=.preplumed "./src/free_energy_methods.F" << \EOF_EOF
+*** ./src/free_energy_methods.F.preplumed	Wed Mar 21 16:05:46 2012
+--- ./src/free_energy_methods.F	Wed Mar 21 16:07:42 2012
+***************
+*** 1,6 ****
+  !-----------------------------------------------------------------------------!
+  !   CP2K: A general program to perform molecular dynamics simulations         !
+! !   Copyright (C) 2000 - 2012  CP2K developers group                          !
+  !-----------------------------------------------------------------------------!
+  
+  ! *****************************************************************************
+--- 1,6 ----
+  !-----------------------------------------------------------------------------!
+  !   CP2K: A general program to perform molecular dynamics simulations         !
+! !   Copyright (C) 2000 - 2011  CP2K developers group                          !
+  !-----------------------------------------------------------------------------!
+  
+  ! *****************************************************************************
+***************
+*** 23,29 ****
+    USE free_energy_types,               ONLY: free_energy_type,&
+                                               ui_var_type
+    USE input_constants,                 ONLY: do_fe_ac,&
+!                                              do_fe_ui
+    USE input_section_types,             ONLY: section_vals_get_subs_vals,&
+                                               section_vals_type,&
+                                               section_vals_val_get
+--- 23,30 ----
+    USE free_energy_types,               ONLY: free_energy_type,&
+                                               ui_var_type
+    USE input_constants,                 ONLY: do_fe_ac,&
+!                                              do_fe_ui,&
+!                                              do_fe_plumed
+    USE input_section_types,             ONLY: section_vals_get_subs_vals,&
+                                               section_vals_type,&
+                                               section_vals_val_get
+***************
+*** 42,47 ****
+--- 43,52 ----
+    USE string_utilities,                ONLY: compress
+    USE timings,                         ONLY: timeset,&
+                                               timestop
++   USE plumed_methods,                  ONLY: plumed_wrapper
++   USE plumed_types,                    ONLY: plumed_type
++  
++ 
+  #include "cp_common_uses.h"
+  
+    IMPLICIT NONE
+***************
+*** 144,149 ****
+--- 149,162 ----
+            CALL dump_ac_info(my_val, my_par, dx, lerr, fe_section, nforce_eval,&
+                 fe_env%covmx, istep, beta, error)
+            CALL finalizef()
++        CASE(do_fe_plumed)
++ 
++           if(simpar%do_respa)then
++               write(*,*)"CANNOT USE PLUMED WITH RESPA"
++               stop
++           endif
++           CALL plumed_wrapper(force_env,fe_env%myplumed,simpar%dt,simpar%nsteps,fe_section,error)
++ 
+         CASE DEFAULT
+            ! Do Nothing
+         END SELECT
+***************
+*** 924,928 ****
+--- 937,942 ----
+  
+    END SUBROUTINE dump_ac_info
+  
++ 
+  END MODULE free_energy_methods
+  
+EOF_EOF
+patch -c -l -b -F 3 --suffix=.preplumed "./src/free_energy_types.F" << \EOF_EOF
+*** ./src/free_energy_types.F.preplumed	Wed Mar 21 16:05:46 2012
+--- ./src/free_energy_types.F	Wed Mar 21 16:07:42 2012
+***************
+*** 1,6 ****
+  !-----------------------------------------------------------------------------!
+  !   CP2K: A general program to perform molecular dynamics simulations         !
+! !   Copyright (C) 2000 - 2012  CP2K developers group                          !
+  !-----------------------------------------------------------------------------!
+  
+  ! *****************************************************************************
+--- 1,6 ----
+  !-----------------------------------------------------------------------------!
+  !   CP2K: A general program to perform molecular dynamics simulations         !
+! !   Copyright (C) 2000 - 2011  CP2K developers group                          !
+  !-----------------------------------------------------------------------------!
+  
+  ! *****************************************************************************
+***************
+*** 11,22 ****
+  MODULE free_energy_types
+    USE f77_blas
+    USE input_constants,                 ONLY: do_fe_ac,&
+!                                              do_fe_ui
+    USE input_section_types,             ONLY: section_vals_get,&
+                                               section_vals_get_subs_vals,&
+                                               section_vals_type,&
+                                               section_vals_val_get
+    USE kinds,                           ONLY: dp
+  #include "cp_common_uses.h"
+  
+    IMPLICIT NONE
+--- 11,24 ----
+  MODULE free_energy_types
+    USE f77_blas
+    USE input_constants,                 ONLY: do_fe_ac,&
+!                                              do_fe_ui,&
+!                                              do_fe_plumed
+    USE input_section_types,             ONLY: section_vals_get,&
+                                               section_vals_get_subs_vals,&
+                                               section_vals_type,&
+                                               section_vals_val_get
+    USE kinds,                           ONLY: dp
++   USE plumed_methods,                  ONLY: plumed_type 
+  #include "cp_common_uses.h"
+  
+    IMPLICIT NONE
+***************
+*** 72,77 ****
+--- 74,80 ----
+       ! Old data
+       REAL(KIND=dp)                                  :: eps_conv
+       REAL(KIND=dp), DIMENSION(:,:), POINTER         :: covmx
++      TYPE(plumed_type), POINTER                     :: myplumed 
+    END TYPE free_energy_type
+  
+  CONTAINS
+***************
+*** 92,98 ****
+  
+      INTEGER                                  :: i, id_method, stat
+      LOGICAL                                  :: explicit, failure
+!     TYPE(section_vals_type), POINTER         :: ui_section, ui_var_section
+  
+      failure=.FALSE.
+      CPPreconditionNoFail(.NOT.ASSOCIATED(fe_env),cp_failure_level,routineP,error)
+--- 95,101 ----
+  
+      INTEGER                                  :: i, id_method, stat
+      LOGICAL                                  :: explicit, failure
+!     TYPE(section_vals_type), POINTER         :: ui_section, ui_var_section, plumed_section
+  
+      failure=.FALSE.
+      CPPreconditionNoFail(.NOT.ASSOCIATED(fe_env),cp_failure_level,routineP,error)
+***************
+*** 149,154 ****
+--- 152,173 ----
+            CPPostcondition(stat==0,cp_warning_level,routineP,error,failure)
+            fe_env%type = id_method
+            CALL section_vals_val_get(fe_section,"ALCHEMICAL_CHANGE%EPS_CONV",r_val=fe_env%eps_conv,error=error)          
++        CASE (do_fe_plumed)
++           ALLOCATE(fe_env, stat=stat)
++           CPPostcondition(stat==0,cp_warning_level,routineP,error,failure)
++           fe_env%type = id_method
++           NULLIFY(fe_env%myplumed)
++           ALLOCATE(fe_env%myplumed, stat=stat)
++           fe_env%myplumed%istep=0
++           CPPostcondition(stat==0,cp_warning_level,routineP,error,failure)
++           NULLIFY(fe_env%myplumed%x,fe_env%myplumed%f,fe_env%myplumed%v,fe_env%myplumed%mass)
++           ! here call for the plumed parser and that is parsed elsewhere   
++           ! plumed just needs to read a single input file
++           !plumed_section => section_vals_get_subs_vals(fe_section,"PLUMED",error=error)  
++           !CALL section_vals_val_get(plumed_section,"INPUT",&
++           !     c_val=fe_env%plumed_file,error=error) 
++           CALL section_vals_val_get(fe_section,"PLUMED%INPUT",c_val=fe_env%myplumed%plumed_file,error=error)
++           ! allocate?
+         CASE DEFAULT
+            ! Do Nothing
+         END SELECT
+EOF_EOF
+patch -c -l -b -F 3 --suffix=.preplumed "./src/input_constants.F" << \EOF_EOF
+*** ./src/input_constants.F.preplumed	Wed Mar 21 16:05:47 2012
+--- ./src/input_constants.F	Wed Mar 21 16:07:42 2012
+***************
+*** 272,278 ****
+    ! Free Energy methods
+    INTEGER, PARAMETER, PUBLIC               :: do_fe_meta=0,&
+                                                do_fe_ui=1,&
+!                                               do_fe_ac=2
+  
+    INTEGER, PARAMETER, PUBLIC               :: do_wall_none=0,&
+                                                do_wall_reflective=1,&
+--- 272,279 ----
+    ! Free Energy methods
+    INTEGER, PARAMETER, PUBLIC               :: do_fe_meta=0,&
+                                                do_fe_ui=1,&
+!                                               do_fe_ac=2,&
+!                                               do_fe_plumed=3
+  
+    INTEGER, PARAMETER, PUBLIC               :: do_wall_none=0,&
+                                                do_wall_reflective=1,&
+EOF_EOF
+patch -c -l -b -F 3 --suffix=.preplumed "./src/input_cp2k_free_energy.F" << \EOF_EOF
+*** ./src/input_cp2k_free_energy.F.preplumed	Wed Mar 21 16:05:47 2012
+--- ./src/input_cp2k_free_energy.F	Wed Mar 21 16:07:42 2012
+***************
+*** 1,6 ****
+  !-----------------------------------------------------------------------------!
+  !   CP2K: A general program to perform molecular dynamics simulations         !
+! !   Copyright (C) 2000 - 2012  CP2K developers group                          !
+  !-----------------------------------------------------------------------------!
+  
+  ! *****************************************************************************
+--- 1,6 ----
+  !-----------------------------------------------------------------------------!
+  !   CP2K: A general program to perform molecular dynamics simulations         !
+! !   Copyright (C) 2000 - 2011  CP2K developers group                          !
+  !-----------------------------------------------------------------------------!
+  
+  ! *****************************************************************************
+***************
+*** 73,84 ****
+         
+         CALL keyword_create(keyword, name="METHOD",&
+              description="Defines the method to use to compute free energy.",&
+!             usage="METHOD (METADYN|UI)",&
+!             enum_c_vals=s2a( "METADYN","UI","AC"),&
+!             enum_i_vals=(/do_fe_meta,do_fe_ui,do_fe_ac/),&
+              enum_desc=s2a("Metadynamics",&
+                            "Umbrella Integration",&
+!                           "Alchemical Change"),&
+              default_i_val=do_fe_meta,repeats=.FALSE.,required=.FALSE.,error=error)
+         CALL section_add_keyword(section,keyword,error=error)
+         CALL keyword_release(keyword,error=error)
+--- 73,85 ----
+         
+         CALL keyword_create(keyword, name="METHOD",&
+              description="Defines the method to use to compute free energy.",&
+!             usage="METHOD (METADYN|UI|AC|PLUMED)",&
+!             enum_c_vals=s2a( "METADYN","UI","AC","PLUMED"),&
+!             enum_i_vals=(/do_fe_meta,do_fe_ui,do_fe_ac,do_fe_plumed/),&
+              enum_desc=s2a("Metadynamics",&
+                            "Umbrella Integration",&
+!                           "Alchemical Change",&
+!                           "Plumed"),&
+              default_i_val=do_fe_meta,repeats=.FALSE.,required=.FALSE.,error=error)
+         CALL section_add_keyword(section,keyword,error=error)
+         CALL keyword_release(keyword,error=error)
+***************
+*** 95,100 ****
+--- 96,105 ----
+         CALL section_add_subsection(section, subsection, error=error)
+         CALL section_release(subsection,error=error)       
+  
++        CALL create_plumed_section(subsection,error)
++        CALL section_add_subsection(section, subsection, error=error)
++        CALL section_release(subsection,error=error)       
++ 
+         CALL cp_print_key_section_create(print_key,"free_energy_info",&
+              description="Controls the printing of basic and summary information during the"//&
+              " Free Energy calculation", &
+***************
+*** 973,976 ****
+--- 978,1019 ----
+      END IF
+    END SUBROUTINE create_uvar_conv_section
+  
++ ! *****************************************************************************
++ !> \brief creates the plumed section
++ !> \param section the section to be created
++ !> \param error variable to control error logging, stopping,... 
++ !>        see module cp_error_handling 
++ !> \author teo
++ ! *****************************************************************************
++   SUBROUTINE create_plumed_section(section,error)
++     TYPE(section_type), POINTER              :: section
++     TYPE(cp_error_type), INTENT(inout)       :: error
++ 
++     CHARACTER(len=*), PARAMETER :: routineN = 'create_plumed_section', &
++       routineP = moduleN//':'//routineN
++ 
++     LOGICAL                                  :: failure
++     TYPE(keyword_type), POINTER              :: keyword
++ 
++     failure=.FALSE.
++     
++     IF (.NOT.failure) THEN
++        CPPrecondition(.NOT.ASSOCIATED(section),cp_failure_level,routineP,error,failure)
++        CALL section_create(section,name="PLUMED",&
++             description="This section specify the plumed parameters ",&
++             n_keywords=0, n_subsections=0, repeats=.TRUE., required=.TRUE.,&
++             error=error)
++         
++        NULLIFY(keyword)
++ 
++        CALL keyword_create(keyword, name="INPUT",&
++             description="Specifies the plumed input file",&
++             usage="INPUT {namefile}", type_of_var=char_t, error=error)
++        CALL section_add_keyword(section,keyword,error=error)
++        CALL keyword_release(keyword,error=error)
++     END IF
++   END SUBROUTINE create_plumed_section
++ 
++ 
++ 
+  END MODULE input_cp2k_free_energy
+EOF_EOF

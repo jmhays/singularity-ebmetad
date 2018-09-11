@@ -1,0 +1,307 @@
+patch -c -l -b --suffix=.preplumed "./md.f90" << \EOF_EOF
+*** ./md.f90.preplumed	2009-04-14 11:52:38.000000000 +0200
+--- ./md.f90	2009-04-16 11:55:28.000000000 +0200
+***************
+*** 45,50 ****
+--- 45,54 ----
+    logfile = conformation%logfile 
+    call initialise(conformation)
+  
++   ! begin PLUMED 
++   if(meta_on) call initialise_metadynamics(lpath,logfile,meta_filename)
++   ! end PLUMED 
++ 
+    ! Minimize the structure until the force threshold is reached
+    if (restart .ne. 'restart') then 
+      ! We define the initial configuration as the reference configuration
+***************
+*** 300,305 ****
+--- 304,313 ----
+    lpath = conformation%path
+    open(501, file=trim(lpath)//"std_out", position="APPEND")
+      
++   !begin PLUMED 
++   if(meta_on) meta_start = .true.
++   !end PLUMED 
++ 
+    ! Initialise the constrained energy
+    constrained_energy = 0.0d0
+    
+***************
+*** 397,399 ****
+--- 405,441 ----
+    conformation%energy = total_energy
+    return
+  end subroutine run_md
++ 
++  ! begin PLUMED 
++ subroutine initialise_metadynamics(path_dir,log_file,meta_input) 
++    use md_defs
++    implicit none
++    real(8) :: ddt 
++    integer :: pbc_opep,nrepl
++    real(8) :: rte0,rteio
++    character(len=30) :: path_dir
++    character(len=20) :: log_file
++    character(len=20) :: meta_input 
++  
++    ddt = timeunit * timestep 
++    if(PBC) then
++     pbc_opep = 1
++    else
++     pbc_opep = 0
++    endif
++  
++    if(ntasks.eq.1) then
++      nrepl = 1
++      rte0  = target_Temperature * 298 / 0.59227
++      rteio = rte0 
++    else
++      nrepl = N_REPLICA 
++      rte0  = T_replica(1) * 298 / 0.59227
++      rteio = T_replica(taskid+1) * 298 / 0.59227
++    endif
++    
++    allocate(meta_force(3*natoms))
++    call init_metadyn(natoms,ddt,pbc_opep,taskid,nrepl,rte0,rteio,mass,trim(path_dir)//char(0),trim(log_file)//char(0),trim(meta_input)//char(0))
++  
++  end subroutine initialise_metadynamics 
++ ! end PLUMED 
+EOF_EOF
+patch -c -l -b --suffix=.preplumed "./md_utils.f90" << \EOF_EOF
+*** ./md_utils.f90.preplumed	2009-04-14 12:28:38.000000000 +0200
+--- ./md_utils.f90	2009-04-16 11:55:28.000000000 +0200
+***************
+*** 143,148 ****
+--- 143,155 ----
+      ! Compute the force (with constraints, if needed) at this new position
+      call calcforce(pos,force,total_energy)
+  
++     ! begin PLUMED 
++     if(meta_on.and.meta_start) then
++       call meta_force_calculation(pos,meta_force)
++       force(:) = force(:) + meta_force(:) 
++     endif
++     ! end PLUMED 
++  
+      ! If we have set-up a sphere, apply the confining condition
+      if  (confining_sphere)  call confine_in_sphere()
+  
+EOF_EOF
+patch -c -l -b --suffix=.preplumed "./defs.f90" << \EOF_EOF
+*** ./defs.f90.preplumed	2009-04-05 17:11:20.000000000 +0200
+--- ./defs.f90	2009-04-16 11:55:28.000000000 +0200
+***************
+*** 93,99 ****
+      real(8), dimension(:), allocatable :: temperatures
+      real(8) :: energy, temperature
+    end type t_conformations
+!   
+    integer :: ntasks, taskid, Error
+  #ifdef MPI
+    integer :: status(MPI_STATUS_SIZE)
+--- 93,106 ----
+      real(8), dimension(:), allocatable :: temperatures
+      real(8) :: energy, temperature
+    end type t_conformations
+! 
+!  ! begin PLUMED 
+!    character(len=20) :: meta_filename
+!    real(8), dimension(:), allocatable :: meta_force
+!    logical :: meta_on, meta_start
+!    real(8) :: delta1, delta2, delta_meta
+!  ! end PLUMED 
+!  
+    integer :: ntasks, taskid, Error
+  #ifdef MPI
+    integer :: status(MPI_STATUS_SIZE)
+EOF_EOF
+patch -c -l -b --suffix=.preplumed "./Makefile" << \EOF_EOF
+*** ./Makefile.preplumed	2009-04-16 11:55:23.000000000 +0200
+--- ./Makefile	2009-04-16 11:55:30.000000000 +0200
+***************
+*** 1,11 ****
+  f77files = $(wildcard *.f)
+  f90files = $(wildcard *.f90)
+! OBJ= $(f77files:.f=.o) $(f90files:.f90=.o) 
+  
+  
+  ifeq ($(arch),intelpt)
+      F90 = mpif90 -O3
+      F77 = mpif90 -O3
+      LIBS = -L/usr/lib/ -llapack -lblas
+      PFLAGS = -cpp -DMPI 
+      LINK = mpif90 
+--- 1,14 ----
+  f77files = $(wildcard *.f)
+  f90files = $(wildcard *.f90)
+! cfiles = $(wildcard *.c)
+! OBJ= $(f77files:.f=.o) $(f90files:.f90=.o) $(cfiles:.c=.o) 
+  
+  
+  ifeq ($(arch),intelpt)
+      F90 = mpif90 -O3
+      F77 = mpif90 -O3
++     CC  = mpicc 
++     CFLAGS = -O3 -DOPEP -DMPI
+      LIBS = -L/usr/lib/ -llapack -lblas
+      PFLAGS = -cpp -DMPI 
+      LINK = mpif90 
+***************
+*** 13,19 ****
+--- 16,24 ----
+  ifeq ($(arch),intel)
+      F90 = ifort -O3
+      F77 = ifort -O3
++     CC  = icc
+      LIBS = -L/usr/lib/ -llapack -lblas 
++     CFLAGS = -O3 -DOPEP
+      PFLAGS = -cpp 
+      LINK = ifort 
+  endif
+EOF_EOF
+patch -c -l -b --suffix=.preplumed "./md_read_parameters.f90" << \EOF_EOF
+*** ./md_read_parameters.f90.preplumed	2009-04-14 11:52:38.000000000 +0200
+--- ./md_read_parameters.f90	2009-04-16 11:55:28.000000000 +0200
+***************
+*** 239,246 ****
+          end if  
+        end if
+      end if  
+! 
+!     
+      ! We write down the various parameters for the simulation
+      if(taskid .eq. 0 ) then 
+        open(unit=FLOG,file=MASTER_LOGFILE,status='unknown',action='write',position='append',iostat=ierror)
+--- 239,257 ----
+          end if  
+        end if
+      end if  
+!   
+!      ! begin PLUMED 
+!      call getenv('plumed',dummy)
+!      if (dummy .eq. '') then
+!        meta_on = .false.
+!        meta_start = .false.
+!      else
+!        meta_filename=dummy
+!        meta_on = .true.
+!        meta_start = .false.
+!      endif       
+!     ! end PLUMED 
+!  
+      ! We write down the various parameters for the simulation
+      if(taskid .eq. 0 ) then 
+        open(unit=FLOG,file=MASTER_LOGFILE,status='unknown',action='write',position='append',iostat=ierror)
+***************
+*** 248,253 ****
+--- 259,265 ----
+        write(FLOG,*) '**************************************************************************'
+        write(FLOG,*) ' '
+        write(FLOG,'(1X,A39,A20  )') ' Restart the simulation              : ', restart 
++       if(meta_on)  write(FLOG,'(1X,A39,A20  )') ' PLUMED is ACTIVE              : ', meta_filename 
+        write(FLOG,'(1X,A39,F12.4)') ' Time unit (in femtoseconds)         : ', timeunit
+        write(FLOG,'(1X,A39,F12.4)') ' Basic time step (in time units)     : ', timestep
+        write(FLOG,'(1X,A39,F12.4)') ' Simulation time (in ns)             : ', simulation_time
+EOF_EOF
+patch -c -l -b --suffix=.preplumed "./simulateur.f90" << \EOF_EOF
+*** ./simulateur.f90.preplumed	2009-04-05 17:11:22.000000000 +0200
+--- ./simulateur.f90	2009-04-16 11:55:29.000000000 +0200
+***************
+*** 90,96 ****
+    real(8), dimension(:), allocatable :: ene
+    integer, dimension(:), allocatable :: id, ind
+    integer :: ind1, ind2, exc_friend, irest
+!   
+    allocate(id(N_REPLICA))
+    allocate(ene(N_REPLICA))
+    allocate(ind(N_REPLICA))
+--- 90,103 ----
+    real(8), dimension(:), allocatable :: ene
+    integer, dimension(:), allocatable :: id, ind
+    integer :: ind1, ind2, exc_friend, irest
+!  
+!   !begin PLUMED
+!   real(8), dimension(:), allocatable :: Vbias, Vbiasx
+!   integer  :: biaseed
+!   biaseed = 12345
+!   allocate(Vbias(N_REPLICA), Vbiasx(N_REPLICA))
+!   !end PLUMED
+!  
+    allocate(id(N_REPLICA))
+    allocate(ene(N_REPLICA))
+    allocate(ind(N_REPLICA))
+***************
+*** 188,193 ****
+--- 195,223 ----
+   ! and the master time step
+        if(taskid==0) call save_master_restart(istep)
+  
++       !begin PLUMED
++       if(meta_on.and.meta_start) then
++ 
++        Vbias      = 0.d0
++        Vbiasx     = 0.d0
++        exc_friend = -1
++ 
++        call bias_exchange(n_replica,biaseed,ind) 
++ 
++        do j=2, N_REPLICA
++         ind1 = ind(j-1)
++         ind2 = ind(j)
++         if(modulo(j,2)==modulo((istep-1),2)) then
++          if(ind1==T_id) exc_friend = ind2
++          if(ind2==T_id) exc_friend = ind1
++         endif
++        enddo
++ 
++        call share_bias(exc_friend-1, Vbias, Vbiasx) 
++ 
++       endif
++       !end PLUMED
++ 
+        exc_friend = -1
+  
+        do j=2, N_REPLICA
+***************
+*** 201,208 ****
+          T2  = T_replica(ind2) 
+        
+          ran_number = ran3()
+!         
+!         if (ran_number .le. exp((1.0d0/T1 - 1.0d0/T2)* (en1-en2))) then
+             if(ind1==T_id) exc_friend = ind2
+             if(ind2==T_id) exc_friend = ind1
+          endif
+--- 231,247 ----
+          T2  = T_replica(ind2) 
+        
+          ran_number = ran3()
+! 
+!         !begin PLUMED
+!         delta_meta = 0.d0
+!         if(meta_on.and.meta_start) then 
+!          delta1 = Vbias(ind1)-Vbiasx(ind1)
+!          delta2 = Vbias(ind2)-Vbiasx(ind2)
+!          delta_meta = delta1 / T1  +  delta2 / T2
+!         endif
+!         !end PLUMED
+!  
+!         if (ran_number .le. exp((1.0d0/T1 - 1.0d0/T2)* (en1-en2) + delta_meta)) then
+             if(ind1==T_id) exc_friend = ind2
+             if(ind2==T_id) exc_friend = ind1
+          endif
+***************
+*** 215,220 ****
+--- 254,263 ----
+  
+          call pack_and_swap(vecsize,conformations%pos, conformations%vel, conformations%id, exc_friend)
+  
++         !begin PLUMED
++         call switch_fluct(exc_friend-1)
++         !end PLUMED
++ 
+          ! Renormalise the velocities by the ratio of temperatures after the exchange
+          if (SIMULATION_METHOD .eq. 'MD') then    
+             conformations%vel(:) = sqrt(conformations%temperature/T_replica(exc_friend))*conformations%vel(:)
+EOF_EOF
