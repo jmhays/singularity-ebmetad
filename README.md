@@ -1,4 +1,7 @@
 # singularity-ebmetad
+
+[![https://www.singularity-hub.org/static/img/hosted-singularity--hub-%23e32929.svg](https://www.singularity-hub.org/static/img/hosted-singularity--hub-%23e32929.svg)](https://singularity-hub.org/collections/1654)
+
 This project may be used to build a Singularity container to run EBMetaD simulations:
 
 Fabrizio Marinelli, José D. Faraldo-Gómez,
