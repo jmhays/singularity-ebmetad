@@ -1,18 +1,17 @@
 Bootstrap: docker
-From: ubuntu:16.04
-
-
-%files
-
-    md_meta_EBMetaD/ 	/opt
+From: nvidia/cuda:8.0-devel-ubuntu16.04 
 
 
 %environment
 
-    plumedir=/builds/md_meta_EBMetaD
-    PATH=/usr/local/gromacs/bin:${PATH}
+    # use bash as default shell
+    SHELL=/bin/bash
 
-    export plumedir PATH
+    PATH=/usr/local/gromacs/bin:${PATH}    
+    PYTHONPATH="/builds/sample_restraint/build/src/pythonmodule:\
+/builds/gmxapi/build:${PYTHONPATH}"
+
+    export PATH PYTHONPATH
 
 
 %labels
@@ -22,22 +21,44 @@ From: ubuntu:16.04
 
 %post
 
-    apt-get update && apt-get -y install wget mpich gcc-5 g++-5 libfftw3-dev make patch
+    apt-get update && apt-get -y install libopenmpi-dev libfftw3-dev cmake make git python3-dev python3-pip locales
+
+    # Install python dependencies
+    pip3 install setuptools networkx cmake mpi4py numpy scipy
 
     mkdir /builds
     cd /builds
-    mv /opt/md_meta_EBMetaD /builds
 
-    # Get gromacs 4.5.1
-    wget ftp://ftp.gromacs.org/pub/gromacs/gromacs-4.5.1.tar.gz
-    tar xf gromacs-4.5.1.tar.gz
-    cd gromacs-4.5.1
-    ./configure --enable-mpi
-
-    # Patch with plumed
-    export plumedir=/builds/md_meta_EBMetaD
-    cp ${plumedir}/patches/plumedpatch_gromacs_4.5.1.sh .
-    bash plumedpatch_gromacs_4.5.1.sh -patch
-
-    # Now make
+    # gromacs-gmxapi
+    git clone https://github.com/kassonlab/gromacs-gmxapi.git
+    cd gromacs-gmxapi
+    git checkout tags/v0.0.6 -b v0.0.6
+    mkdir build
+    cd build
+    cmake ../ -DGMX_MPI=OFF -DGMX_GPU=ON -DGMX_OPENMP=ON -DGMX_USE_NVML=OFF
     make -j8; make install
+    cd /builds
+
+    # gmxapi
+    git clone https://github.com/kassonlab/gmxapi.git
+    cd gmxapi
+    git checkout tags/v0.0.6 -b v0.0.6
+    mkdir build; cd build
+    cmake ../ -Dgmxapi_DIR=/usr/local/gromacs/share/cmake/gmxapi
+    make -j8; make install
+    cd /builds
+
+    # EBMetaD plugin
+    git clone https://github.com/jmhays/sample_restraint.git
+    cd sample_restraint
+    git checkout -b ebmetad
+    mkdir build; cd build
+    cmake ../ -Dgmxapi_DIR=/usr/local/gromacs/share/cmake/gmxapi -DGROMACS_DIR=/usr/local/gromacs/share/cmake/gromacs
+    make -j8
+    cd /builds
+
+    # EBMetaD run scripts
+    git clone https://github.com/jmhays/run_ebmetad.git
+    cd run_ebmetad/
+    python3 setup.py install
+

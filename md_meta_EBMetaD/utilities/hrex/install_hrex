@@ -1,5 +1,0 @@
-for file in md.c repl_ex.c repl_ex.h
-do
-  rm src/kernel/$file
-  ln -s $plumedir/utilities/hrex/$file src/kernel/
-done
