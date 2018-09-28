@@ -9,7 +9,7 @@ From: nvidia/cuda:8.0-devel-ubuntu16.04
 
     PATH=/usr/local/gromacs/bin:${PATH}    
     PYTHONPATH="/builds/sample_restraint/build/src/pythonmodule:\
-/builds/gmxapi/build:${PYTHONPATH}"
+/usr/local/lib/python3.5/dist-packages:/builds/gmxapi/build:${PYTHONPATH}"
 
     export PATH PYTHONPATH
 
@@ -60,5 +60,6 @@ From: nvidia/cuda:8.0-devel-ubuntu16.04
     # EBMetaD run scripts
     git clone https://github.com/jmhays/run_ebmetad.git
     cd run_ebmetad/
+    git checkout devel
     python3 setup.py install
 
