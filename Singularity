@@ -35,7 +35,7 @@ From: nvidia/cuda:8.0-devel-ubuntu16.04
     git checkout tags/v0.0.6 -b v0.0.6
     mkdir build
     cd build
-    cmake ../ -DGMX_MPI=OFF -DGMX_GPU=ON -DGMX_OPENMP=ON -DGMX_USE_NVML=OFF
+    cmake ../ -DGMX_MPI=OFF -DGMX_GPU=OFF -DGMX_OPENMP=ON -DGMX_USE_NVML=OFF
     make -j8; make install
     cd /builds
 
