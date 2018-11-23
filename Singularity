@@ -62,4 +62,3 @@ From: nvidia/cuda:8.0-devel-ubuntu16.04
     cd run_ebmetad/
     git checkout devel
     python3 setup.py install
-
