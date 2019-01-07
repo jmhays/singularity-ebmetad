@@ -51,7 +51,7 @@ From: nvidia/cuda:8.0-devel-ubuntu16.04
     # EBMetaD plugin
     git clone https://github.com/jmhays/sample_restraint.git
     cd sample_restraint
-    git checkout ebmetad
+    git checkout deer
     mkdir build; cd build
     cmake ../ -Dgmxapi_DIR=/usr/local/gromacs/share/cmake/gmxapi -DGROMACS_DIR=/usr/local/gromacs/share/cmake/gromacs
     make -j8
