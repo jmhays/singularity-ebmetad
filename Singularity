@@ -42,7 +42,7 @@ From: nvidia/cuda:8.0-devel-ubuntu16.04
     # gmxapi
     git clone https://github.com/kassonlab/gmxapi.git
     cd gmxapi
-    git checkout tags/v0.0.6 -b v0.0.6
+    git checkout release-0_0_6 
     mkdir build; cd build
     cmake ../ -Dgmxapi_DIR=/usr/local/gromacs/share/cmake/gmxapi
     make -j8; make install
